@@ -90,13 +90,13 @@ def zFromDz(dz):
 
 def main():
     nk = 75         # number of levels
-    Htot=6500       # deepest ocean point
-    Huniform = 5    # upper region of uniform resolution
-    dzTop = 5       # thickness of top level
+    Htot=6000       # deepest ocean point
+    Huniform = 2    # upper region of uniform resolution
+    dzTop = 2       # thickness of top level
     fnPow = 1.42865 # ???
     prec = .01      # precision to round thicknesses/depths todz = dzIter(nk, Htot, dzTop, Huniform, fnPow, prec)
-    fname = 'vgrid_75_5m.nc'
-    fileout='layer.nc'
+    fname = 'vgrid_6000_2m.nc'
+    fileout='layer_6000_2m.nc'
     
     
     dz = dzIter(nk, Htot, dzTop, Huniform, fnPow,  prec)
@@ -132,17 +132,9 @@ def main():
         
         
         
-        ds = xr.open_dataset('/home/nicole/Documentos/INPE/dados_tese/SODA/soda3.15.2_5dy_ocean_reg_2000_12_28.nc')
-        grid = open_grid('/home/nicole/Documentos/INPE/mom/exps_mom6/exp_AScoast_cdo/workdir/INPUT/ocean_hgrid.nc')
-
-        nz = ds.st_ocean.values.shape[0]  
-        nk = ds.st_ocean.values
-        
         nz=len(dz)
         nk=zFromDz(dz)[1]
         
-        nx=grid.x[0,:].shape[0]
-        ny=grid.y[:,0].shape[0]
         
         #Criar interfaces: eixo z
         print(f"z = {nk}") 
@@ -171,33 +163,32 @@ def main():
         
     #!==============================================    
         #criar eta: variação da altura em metros
-        topog = xr.open_dataset('/home/nicole/Documentos/INPE/mom/exps_mom6/exp_AScoast002/workdir/INPUT/ocean_topog.nc')
-        depth_vector = topog.depth      
         eta=np.zeros(interf.shape)
         print(eta.shape)      
         eta[0:] = -0.5*(np.roll(interf,shift=-1)+interf)
         eta[-1] = -0.5*(max(nk) - nkmax)
         #eta[0]=0  
 
-        eta0 = np.empty((len(nk)+1, ny, nx))
-        nk0= np.empty((nk.shape[0], ny, nx))
+        eta0 = np.empty((len(nk)+1,))
+        nk0= np.empty((nk.shape[0]))
         for kz in range(len(interf)):
-            eta0[kz,:,:]=eta[kz]
+            eta0[kz]=eta[kz]
             try:
-                nk0[kz,:,:]=nk[kz]
+                nk0[kz]=nk[kz]
             except:
                 pass
         
-        da_eta=xr.DataArray(eta0,coords=[('Interface',interf),
-                                    ('ny',grid.y[:,0].data),('nx', grid.x[0,:].data)], name='eta')
-        use_depth_to_limit=True
+        da_eta=xr.DataArray(eta0,coords=[('Interface',interf)],
+                                    #('ny',grid.y[:,0].data),('nx', grid.x[0,:].data)], 
+                                    name='eta')
+        use_depth_to_limit=False
         if use_depth_to_limit:
                 for k in range(nz):
                     da_eta[k,:,:] = xr.where(abs(eta0[k,:,:])>abs(depth_vector), -1.0*depth_vector, eta0[k,:,:])  
         #ds_["eta"]=da_eta
         if view_results:
-                print('eta >>>>>>>>>>>',da_eta.isel(ny=0))               
-                da_eta.isel(ny=0).plot()
+                print('eta >>>>>>>>>>>',da_eta)               
+                da_eta.plot()
                 plt.show()
     #!==============================================
 

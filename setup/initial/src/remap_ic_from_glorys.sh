@@ -43,14 +43,24 @@ def main():
         print(f"ocean_hgrid? {ocean_hgrid}")  
         
     if ocean_hgrid:
-        ds_regionalgrid=xr.Dataset(
-            {
-                "lat": (["lat"], regional_grid.y.values[:,0]),
-                "lon": (["lon"], regional_grid.x.values[0]),
-            }
-        )
+#        ds_regionalgrid=xr.Dataset(
+#            {
+#		    "lat": (["lat"], np.linspace(regional_grid.y.min().values,regional_grid.y.max().values,len(regional_grid.y.values[:,0]))), #for regular grid
+#		    "lon": (["lon"], np.linspace(regional_grid.x.min().values,regional_grid.x.max().values,len(regional_grid.x.values[0,:]))),
+#                    "lat": (["lat"], regional_grid.y.values[:,0]),
+#                    "lon": (["lon"], regional_grid.x.values[0,:]),
+#            }
+#        )
+        ds_regionalgrid=regional_grid[['x', 'y']].rename({'y': 'lat', 'x': 'lon'})
     else: 
         ds_regionalgrid=regional_grid      
+        if 'lat' not in ds_regionalgrid.dims or 'lon' not in ds_regionalgrid.dims:
+             for (x,y) in [('longitude','latitude'),('xh','yh'),('xt_ocean','yt_ocean'),('nx','ny')]:
+                    try:
+                        ds_regionalgrid=ds_regionalgrid.rename({x:'lon',y:'lat'})
+                        break
+                    except:
+                        pass
 
     ds=xr.open_dataset(global_file)
     Vvar={'thetao':'temp','so':'salt','zos':'ssh',
@@ -66,7 +76,7 @@ def main():
 	    quit()
 
     if 'lat' not in ds.dims or 'lon' not in ds.dims:
-           for (x,y) in [('longitude','latitude'),('xh','yh'),('xt_ocean','yt_ocean')]:
+	    for (x,y) in [('longitude','latitude'),('xh','yh'),('xt_ocean','yt_ocean'),('nx','ny')]:
                     try:
                         ds=ds.rename({x:'lon',y:'lat'})
                         break
@@ -88,6 +98,7 @@ def main():
        time, lon, lat, lev = ds.indexes.values()	
     else:
        time,lon,lat = ds.indexes.values()
+
     print(f" coords input={ds.dims}"  )
     print(f" coords grid ={regional_grid.dims}"  )        
     
@@ -219,6 +230,7 @@ def interpolation_method(ds_cut,ds_ccs,fronteira):
     # Remapping the variable ontonorthern boundary  using the appropriate xESMF regridder:
     if sel_var in ['SSH','ssh','zos']:
         drowned_var = flood_kara(ds_cut[sel_var], xdim='lon', ydim='lat', tdim='time')
+        #drowned_var=ds_cut[sel_var]
 
     else:    
         drowned_var = flood_kara(ds_cut[sel_var], xdim='lon', ydim='lat', zdim='lev')
@@ -227,7 +239,7 @@ def interpolation_method(ds_cut,ds_ccs,fronteira):
     if fronteira in ['initial']:              
         #alldrowned_var = drowned_var.ffill(dim='lev').bfill(dim='lev')
         var_ic_ccs = regrid_domain(drowned_var)        
-        alldrowned_var= var_ic_ccs
+        alldrowned_var= var_ic_ccs.drop(['lon','lat']).rename({'nxp': 'lon', 'nyp': 'lat'})
         
         if view_results:       
                 var_ic_ccs.isel(time=0,lev=0).plot()
@@ -235,6 +247,7 @@ def interpolation_method(ds_cut,ds_ccs,fronteira):
                 print(alldrowned_var)
                 alldrowned_var.isel(time=0,lev=0).plot()
                 plt.show()                
+		
    
     print('ok') 
 
@@ -242,7 +255,7 @@ def interpolation_method(ds_cut,ds_ccs,fronteira):
 def write_obc(da, dadz, varname, fname='obc_teste.nc', fill_value=1e20):
     #not used
     print(f'writing {varname} to {fname}')
-    ds_=da.to_dataset(name=varname)
+    ds_=da.assign_coords({'lat':da['lat'].data,'lon':da['lon']}).to_dataset(name=varname)
     if dadz is not None:
         ds_['dz_'+varname]=dadz
     if view_results:
@@ -251,14 +264,22 @@ def write_obc(da, dadz, varname, fname='obc_teste.nc', fill_value=1e20):
         ds_[v].encoding['_FillValue']=fill_value
         ds_[v].encoding['dtype']=np.float32
     for v in ds_.coords:
+        ds_[v]=xr.DataArray(ds_[v].data, dims=[v], coords= {v:(v,ds_[v].data)})
         ds_[v].encoding['_FillValue']=fill_value
         ds_[v].encoding['dtype']=np.float32
-    ds_.lon.attrs={'standard_name':"longitude",
+    if varname in ['uo','u']:
+        xstr,ystr='lonq','lath'
+    elif varname in ['vo','v']:
+        xstr,ystr='lonh','latq'
+    else:
+        xstr,ystr='lonh','lath'
+    ds_=ds_.rename({'lon':xstr,'lat':ystr})
+    ds_[xstr].attrs={'standard_name':"longitude",
                         'long_name' : "geographic_longitude",
                         'axis' : "X",
                         'cartesian_axis' : "X",
                         'units' : "degrees_east"}
-    ds_.lat.attrs={'standard_name' : "latitude",
+    ds_[ystr].attrs={'standard_name' : "latitude",
                             'long_name' : "geographic_latitude",
                             'axis' : "Y",
                             'cartesian_axis' : "Y",
@@ -315,11 +336,20 @@ def saving_files(use_location,dir_out,fill_value,fronteira):
                         lat=pr['tr_in'].lat
                         lon=pr['tr_in'].lon 
                 except:         
-                        print(f'ERRO! arquivo não tem as mesmas coords do soda, arrumar o script {sys.argv[0]}')
-                        print("disponível:", pr['tr_in'].indexes.values())
-                        quit()
+                        if len(pr['tr_in'].dims) > 2:
+                            print(f'ERRO! arquivo não tem as mesmas coords do soda, arrumar o script {sys.argv[0]}')
+                            print("disponível:", pr['tr_in'].indexes.values())
+                            quit()
+                        else:
+                            lat=pr['tr_in'].lat
+                            lon=pr['tr_in'].lon
+                            time=pr['tr_in'].time
   
-            zl=lev.data
+            try: 
+               zl=lev.data
+            except:
+               pass
+            print(time.shape)
             nt=time.shape[0]
             nx=lon.shape[0]
             ny=lat.shape[0]             
@@ -333,13 +363,19 @@ def saving_files(use_location,dir_out,fill_value,fronteira):
                              coords=dict(time=(['time'],time),
                                       lev=(['lev'],lev),
                                       lon=(['lon'],lon),lat=(['lat'],[lat[0]])))
-            elif 'ic' in pr['tr_out'] :
+            elif 'ic' in pr['tr_out'] and len(pr['tr_in'].dims) >2:
                    ds_=xr.Dataset(data_vars={
                    sel_var+pr['suffix']:(["time","lev","lat","lon"] , pr['tr_in'].data)},
                              coords=dict(time=(['time'],time.data),
                                       lev=(['lev'],lev.data),
                                       lon=(['lon'],lon.data),
                                       lat=(['lat'],lat.data))) 
+            elif 'ic' in pr['tr_out'] : #for ssh
+                   ds_=xr.Dataset(data_vars={
+                   sel_var+pr['suffix']:(["time","lat","lon"] , pr['tr_in'].data)},
+                             coords=dict(time=(['time'],time.data),
+                                      lon=(['lon'],lon.data),
+                                      lat=(['lat'],lat.data)))		    
             else:
                    ds_=xr.Dataset(data_vars={
 #                                'dz_'+sel_var+pr['suffix']:da_dz,
