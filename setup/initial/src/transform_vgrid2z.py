@@ -17,8 +17,7 @@
 def main(ds, dsCtrl2, preffix='ds_', zcoord_in='z_l', zcoord_to='depth'):
 
 #           ### TRANSFORM Z-COORD ###
-            dsCtrl2['z_to'] = abs(ds[zcoord_to].values)
-            print(dsCtrl2.dims)
+            dsCtrl2['z_to'] = abs(zcoord_to)
             try:
                 gridz = Grid(dsCtrl2, coords={'Z': {'center':zcoord_in}}, periodic=False)
             except:
@@ -40,16 +39,38 @@ def main(ds, dsCtrl2, preffix='ds_', zcoord_in='z_l', zcoord_to='depth'):
                   break
                  
             newds=newds.transpose('time','z_to',y,x).rename({'z_to':'depth',x:'lon',y:'lat'})
-
+            fill_value=1e20
+            for v in newds:
+               newds[v].encoding['_FillValue']=fill_value
+               newds[v].encoding['missing_value']=fill_value
+               newds[v].encoding['dtype']=np.float32
             newds.to_netcdf(f'{preffix}_zl.nc')
             print(f'> out : {preffix}_zl.nc')
 
             quit()
 
+def vgrid_to_interfaces(vgrid, max_depth=6000.0):
+    if isinstance(vgrid, xr.DataArray):
+        vgrid = vgrid.data
+    zi = np.concatenate([[0], np.cumsum(vgrid)])
+    zi[-1] = np.array(max_depth)
+    return zi
+
+
+def vgrid_to_layers(vgrid, max_depth=6000.0):
+    if isinstance(vgrid, xr.DataArray):
+        vgrid = vgrid.data
+    ints = vgrid_to_interfaces(vgrid, max_depth=max_depth)
+    z = (ints + np.roll(ints, shift=1)) / 2
+    layers = z[1:]
+    return layers
+            
+
 if __name__ == "__main__":
         import xarray as xr
         import sys
         from xgcm import Grid
+        import numpy as np
 
         import warnings   
         warnings.filterwarnings("ignore")
@@ -70,5 +91,7 @@ if __name__ == "__main__":
               print(ds_fromZ.data_vars)
               print('zcoord_to:');zcoord_to=input()
 
+        z=vgrid_to_layers(ds_fromZ[zcoord_to].values)
+
         main(ds_fromZ,ds_toTransform,preffix=ncfile2.replace('.nc',''),
-                zcoord_in='z_l', zcoord_to=zcoord_to)
+                zcoord_in='z_l', zcoord_to=z)

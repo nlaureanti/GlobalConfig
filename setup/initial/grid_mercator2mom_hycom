@@ -1,0 +1,94 @@
+#!/bin/bash
+handler_INT ()
+{
+  echo "Deleting temp files..."
+  rm -fr tmp.id${id}
+  exit 2
+}
+trap handler_INT 2
+
+# module load cdo
+# module load nco
+##
+##  Scripts para converter os arquivos do mercator para
+##  inicializar o modelo MOM6. Default is new grid
+##  Opcional: grid: new (360x312,360x313,361x312) or old (360x312)
+##
+##  Ex: grid_mercator2mom cmems_mod_glo_phy_my_0.083deg_P1D-m_multi-vars_180.00W-179.92E_80.00S-90.00N_0.49-5274.78m_1993-10-31.nc
+##
+if [ "${1}" = "help" -o -z "${1}" ]
+  then grep "##" ${0}|grep -v grep
+  exit 0
+fi
+
+id=777
+file=${1}
+model=${2}
+layerfile="../../grid/hycom1_75_800m.nc"
+if [ ! "`ls ${file}*`" ]
+  then echo "Arquivo inexistente..."
+  exit 0
+fi
+set -x
+mkdir tmp.id${id}
+cp ${file} tmp.id${id}/${file}
+for var in siconc sithick so thetao uo vo zos
+do
+  ls tmp.id${id}/${file} || ncatted -h -O -a _FillValue,${var},o,f,9.96921e+36 tmp.id${id}/${file}
+  ##NLaureanti added 30Jul2024: vertical interp
+  if [[ $v != 'ssh' || $v != 'zos' || $v != 'SSH' || $v != 'siconc' || $v != 'sithick' ]] ; then
+	file2remap="$( echo tmp.id${id}/${file} |sed 's#.nc##g' )_zl.nc" #file remapped h with cdo and v with python, saves time
+        echo -ne "${bg_mr} Vertical Interp ${fim} (${var}) \n" 
+        ./src/transform_vgrid2z.py ${layerfile} tmp.id${id}/${file} 'dz' || exit
+  fi
+
+done
+#cdo splitname tmp.id${id}/${file} tmp.id${id}/${file}-
+cdo -P 8 splitname ${file2remap} tmp.id${id}/${file}-
+
+# file0=$(ls ${file}_2D_fcst*|head -1)
+
+# file1=$(ls ${file}_3D*|grep uovo|head -1)
+file2=tmp.id${id}/${file}-uo.nc
+file3=tmp.id${id}/${file}-vo.nc
+# file4=$(ls ${file}*|grep wo|head -1)
+file5=tmp.id${id}/${file}-so.nc
+file6=tmp.id${id}/${file}-thetao.nc
+# file5=$(ls ${file}_3D*|grep so|head -1)
+# file6=$(ls ${file}_3D*|grep thetao|head -1)
+file7=tmp.id${id}/${file}-siconc.nc
+file8=tmp.id${id}/${file}-sithick.nc
+file9=tmp.id${id}/${file}-zos.nc
+
+#por que multiplicar por 905??
+cdo mulc,905.0 ${file8} ${file8}.tmp
+mv ${file8}.tmp ${file8}
+
+
+if [ "${model}" = "old" ]
+  then
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file2} tmp.id${id}/remap_uo.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file3} tmp.id${id}/remap_vo.nc
+  # cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file4} tmp.id${id}/remap_wo.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file5} tmp.id${id}/remap_so.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file6} tmp.id${id}/remap_thetao.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -filmiss2 ${file7} tmp.id${id}/remap_siconc.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss2 ${file8} tmp.id${id}/remap_sithick.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file9} tmp.id${id}/remap_zos.nc
+  else
+  cdo -P 8 remapdis,grid_361x312.nc,4 -fillmiss ${file2} tmp.id${id}/remap_uo.nc
+cdo -P 8 remapdis,grid_360x313.nc,4 -fillmiss ${file3} tmp.id${id}/remap_vo.nc
+  # cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file4} tmp.id${id}/remap_wo.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file5} tmp.id${id}/remap_so.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file6} tmp.id${id}/remap_thetao.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss2 ${file7} tmp.id${id}/remap_siconc.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss2 ${file8} tmp.id${id}/remap_sithick.nc
+  cdo -P 8 remapdis,grid_360x312.nc,4 -fillmiss ${file9} tmp.id${id}/remap_zos.nc
+fi
+# cdo merge tmp.id${id}/remap_so.nc tmp.id${id}/remap_thetao.nc tmp.id${id}/remap_uo.nc tmp.id${id}/remap_vo.nc tmp.id${id}/remap_wo.nc tmp.id${id}/remap_${file}.nc
+# ncrename -v so,salt -v thetao,ptemp -v uo,u -v vo,v -v wo,w tmp.id${id}/remap_${file}.nc
+cdo merge tmp.id${id}/remap_so.nc tmp.id${id}/remap_thetao.nc tmp.id${id}/remap_uo.nc tmp.id${id}/remap_vo.nc tmp.id${id}/remap_siconc.nc tmp.id${id}/remap_sithick.nc tmp.id${id}/remap_zos.nc tmp.id${id}/remap_${file}.nc
+ncrename -v so,salt -v thetao,ptemp -v uo,u -v vo,v -v siconc,sic -v sithick,sit -v zos,ssh tmp.id${id}/remap_${file}.nc
+
+ cdo  -setmissval,1e20 -fillmiss2 tmp.id${id}/remap_${file}.nc ./mom6_${file/.nc/}${model}.nc
+#rm -fr tmp.id${id}
