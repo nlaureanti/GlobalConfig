@@ -3,5 +3,6 @@
 *.bin
 *.png
 setup/{rivers,boundary,mine_boudary,chl,tides}
-setup/initial/output_exp_global/
+setup/initial/output_exp_global*/
+setup/initial
 
