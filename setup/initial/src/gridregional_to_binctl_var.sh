@@ -81,8 +81,8 @@ def main():
                          dims = ("time","z","lat","lon") ,
                          coords = { "time" : time_values,
                                       "z" : abs(ds[z].values),
-				     #'lat' : np.linspace(regional_grid.y.min().values,regional_grid.y.max().values,len(regional_grid.y.values[:,0])),
-				     'lat': regional_grid.y.values[:,1],
+				     'lat' : np.linspace(regional_grid.y.min().values,regional_grid.y.max().values,len(regional_grid.y.values[:,0])),
+				     #'lat': regional_grid.y.values[:,1],
                                      'lon' : regional_grid.x.values[1]})
          print(v.lon.max().values,v.lat.min().values)
     else:
