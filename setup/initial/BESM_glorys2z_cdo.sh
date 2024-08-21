@@ -15,43 +15,51 @@ date
 
 # Para uso de geração de g
 # Global model definitions
-export dir_saida=$(pwd)"/output_exp_global/"
+export dir_saida=$(pwd)"/output_exp_global_z/"
 
 # Global model definitions
-export fgrid="$(pwd)/ocean_hgrid.nc"
+export fgrid="/home/nicole.laureanti/scratch/nicole.laureanti/GlobalConfig/grid/"
 
 # Arquivo para uso de remapeamento
 export dirdata="$(pwd)/"
 export fnames="cmems_mod_glo_phy_my_0.083deg_P1D-m_multi-vars_180.00W-179.92E_80.00S-90.00N_0.49-5274.78m_1993-11-01.nc"
 
 
-export layerfile="$(pwd)/layer_6000_75.nc"
+export layerfile="/home/nicole.laureanti/scratch/nicole.laureanti/GlobalConfig/grid/vgrid_6000_75.nc"
 ################################################################################
 ################################################################################
 
-source $(pwd)/lib.sh
+source $(pwd)/src/lib.sh
 src="$(pwd)/src/"
 mkdir -p $dir_saida
 cd $dir_saida
 rm -f *.log obc*.nc tmp* regrid*.nc	
 
 
-echo -ne ${mr}" criando arqs grid vazios em nc ${fim}${pr}"
-ls ${dirdata}${fnames} 2> originalfile.tmp || exit
-fgrid_tmp=$dir_saida/tmp.ocean_hgrid.nc
-cp ${fgrid} ${fgrid_tmp}
-${src}/gridregional_to_binctl.sh ${fgrid_tmp} ${layerfile} ""
-echo -ne $fim
-cdo -L -s -f nc import_binary $(basename ${fgrid_tmp}| sed "s#.nc#.ctl#g") $(basename ${fgrid_tmp}) || exit
+( ls ${dirdata}${fnames} 2> originalfile.tmp ) || ( cat originalfile.tmp && exit 0 )
+fgrid_tmp=$dir_saida/ocean_hgrid.nc
+#fremap_cdo=$dir_saida/tmp.ocean_topog.nc
+#cp ${fgrid}/topog.nc ${fremap_cdo}
+#cp $fgrid/ocean_hgrid.nc $fgrid_tmp
 
 vvars=("temp" "salt" "ssh" 'siconc' 'sithick' 'u' 'v')
 vfvars=('thetao' 'so' 'zos' 'siconc' 'sithick' 'uo' 'vo')
 
-for n in $(seq 2 $(( ${#vvars[@]} -1 )) ); do
+#for n in 0 5 6  ; do #$(seq 0 $(( ${#vvars[@]} -1 )) ); do
+for n in $(seq 0 $(( ${#vvars[@]} -1 )) ); do
     v=${vvars[n]}
     vf=${vfvars[n]}
     ls ${dirdata}${fnames} || exit	
-    cdo -L -s -chname,${vf},${v} -remapdis,${fgrid_tmp} -selvar,${vf} ${dirdata}${fnames} tmp.${fnames}
+    echo -ne ${mr}" criando arqs grid vazios em nc ${fim}${pr}"
+    ${src}/gridregional_to_binctl_var.sh ${fgrid}/ocean_hgrid.nc ${layerfile} ${v} || exit
+ 
+    echo -ne $fim
+    cdo -L -s -f nc import_binary $(basename ${fgrid_tmp}| sed "s#.nc#.ctl#g") $(basename ${fgrid_tmp}) || exit
+    #ignore all above
+    #cp $(basename ${fgrid_tmp}| sed "s#.nc#.ctl#g") grid${v}.ctl
+    #fgrid_tmp="../grid_${v}.nc"
+    echo -ne "${bg_mr} Remap ${fim} ($v) \n"
+    cdo  -L -s -chname,${vf},${v} -remapdis,${fgrid_tmp} -selvar,${vf} ${dirdata}${fnames} tmp.${fnames}
 	(cdo showname tmp.${fnames} | grep $v ) || exit
 
     #Definições
@@ -59,13 +67,15 @@ for n in $(seq 2 $(( ${#vvars[@]} -1 )) ); do
 	file2remap=tmp.${fnames} #file remapped h with cdo, saves time
     else
 	echo -ne "${bg_mr} Vertical Interp ${fim} ($v) \n"
-	$src/transform_z.py ${layerfile} tmp.${fnames} Layer || exit
+	#$src/transform_z.py ${layerfile} tmp.${fnames} 'zt' || exit
+	${src}/transform_vgrid2z.py ${layerfile} tmp.${fnames} 'dz' 6000 || exit
 	file2remap="$( echo tmp.${fnames} |sed 's#.nc##g' )_zl.nc" #file remapped h with cdo and v with python, saves time
     fi
 	echo -ne "${bg_mr} Remapeando ${fim} ic_${v}.nc \n"
 	ls ${file2remap} || exit
-	ls ${fgrid} || exit
-        $src/remap_ic_from_glorys.sh ${fgrid} ${file2remap} ${v} initial #2> python.log || exit
+	#ls ${fgrid} || exit
+        #$src/remap_ic_from_glorys.sh ${fgrid_tmp} ${file2remap} ${v} initial #2> python.log || exit
+	cdo  -setmissval,1e20 -fillmiss2 ${file2remap} ic_${v}.nc || exit
 
 done
 	rm -f ic_file.nc

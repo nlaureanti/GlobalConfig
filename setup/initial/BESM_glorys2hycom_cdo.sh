@@ -29,7 +29,7 @@ export layerfile="/home/nicole.laureanti/scratch/nicole.laureanti/GlobalConfig/g
 ################################################################################
 ################################################################################
 
-source $(pwd)/lib.sh
+source $(pwd)/src/lib.sh
 src="$(pwd)/src/"
 mkdir -p $dir_saida
 cd $dir_saida
