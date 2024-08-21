@@ -43,15 +43,15 @@ def main():
         print(f"ocean_hgrid? {ocean_hgrid}")  
         
     if ocean_hgrid:
-#        ds_regionalgrid=xr.Dataset(
-#            {
-#		    "lat": (["lat"], np.linspace(regional_grid.y.min().values,regional_grid.y.max().values,len(regional_grid.y.values[:,0]))), #for regular grid
-#		    "lon": (["lon"], np.linspace(regional_grid.x.min().values,regional_grid.x.max().values,len(regional_grid.x.values[0,:]))),
+        ds_regionalgrid=xr.Dataset(
+            {
+		    "lat": (["lat"], np.linspace(regional_grid.y.min().values,regional_grid.y.max().values,len(regional_grid.y.values[:,0]))), #for regular grid
+		    "lon": (["lon"], np.linspace(regional_grid.x.min().values,regional_grid.x.max().values,len(regional_grid.x.values[0,:]))),
 #                    "lat": (["lat"], regional_grid.y.values[:,0]),
 #                    "lon": (["lon"], regional_grid.x.values[0,:]),
-#            }
-#        )
-        ds_regionalgrid=regional_grid[['x', 'y']].rename({'y': 'lat', 'x': 'lon'})
+            }
+        )
+#        ds_regionalgrid=regional_grid[['x', 'y']].rename({'y': 'lat', 'x': 'lon'})
     else: 
         ds_regionalgrid=regional_grid      
         if 'lat' not in ds_regionalgrid.dims or 'lon' not in ds_regionalgrid.dims:

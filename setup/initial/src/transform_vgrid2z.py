@@ -25,7 +25,7 @@ def main(ds, dsCtrl2, preffix='ds_', zcoord_in='z_l', zcoord_to='depth'):
             newds = xr.Dataset()
             for var in dsCtrl2.variables:
                 if var not in dsCtrl2.dims and dsCtrl2[var].ndim > 3 and var not in ['time_bnds']:
-                    print(var)
+                    #print(var)
                     newds[var] = gridz.transform(dsCtrl2[var], 'Z', dsCtrl2.z_to,
                     mask_edges=False,
                         method='linear')
@@ -49,7 +49,7 @@ def main(ds, dsCtrl2, preffix='ds_', zcoord_in='z_l', zcoord_to='depth'):
 
             quit()
 
-def vgrid_to_interfaces(vgrid, max_depth=6000.0):
+def vgrid_to_interfaces(vgrid, max_depth=6500.0):
     if isinstance(vgrid, xr.DataArray):
         vgrid = vgrid.data
     zi = np.concatenate([[0], np.cumsum(vgrid)])
@@ -57,7 +57,7 @@ def vgrid_to_interfaces(vgrid, max_depth=6000.0):
     return zi
 
 
-def vgrid_to_layers(vgrid, max_depth=6000.0):
+def vgrid_to_layers(vgrid, max_depth=6500.0):
     if isinstance(vgrid, xr.DataArray):
         vgrid = vgrid.data
     ints = vgrid_to_interfaces(vgrid, max_depth=max_depth)
@@ -91,7 +91,7 @@ if __name__ == "__main__":
               print(ds_fromZ.data_vars)
               print('zcoord_to:');zcoord_to=input()
 
-        z=vgrid_to_layers(ds_fromZ[zcoord_to].values)
+        z=vgrid_to_layers(ds_fromZ[zcoord_to].values, max_depth=sys.argv[4])
 
         main(ds_fromZ,ds_toTransform,preffix=ncfile2.replace('.nc',''),
                 zcoord_in='z_l', zcoord_to=z)

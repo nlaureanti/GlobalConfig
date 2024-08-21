@@ -68,7 +68,7 @@ for n in $(seq 0 $(( ${#vvars[@]} -1 )) ); do
     else
 	echo -ne "${bg_mr} Vertical Interp ${fim} ($v) \n"
 	#$src/transform_z.py ${layerfile} tmp.${fnames} 'zt' || exit
-	${src}/transform_vgrid2z.py ${layerfile} tmp.${fnames} 'dz' || exit
+	${src}/transform_vgrid2z.py ${layerfile} tmp.${fnames} 'dz' 6500 || exit
 	file2remap="$( echo tmp.${fnames} |sed 's#.nc##g' )_zl.nc" #file remapped h with cdo and v with python, saves time
     fi
 	echo -ne "${bg_mr} Remapeando ${fim} ic_${v}.nc \n"
